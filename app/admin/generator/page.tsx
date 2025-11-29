@@ -1,0 +1,241 @@
+'use client';
+
+import { useState } from 'react';
+import { generatePostContent, GeneratedPost, Comment } from '@/app/actions/generator';
+import { savePost } from '@/app/actions/save-post';
+
+export default function GeneratorPage() {
+  const [topic, setTopic] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [data, setData] = useState<GeneratedPost | null>(null);
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'success' | 'error'>('idle');
+
+  const handleGenerate = async () => {
+    if (!topic.trim()) return;
+    setLoading(true);
+    setSaveStatus('idle');
+    try {
+      const result = await generatePostContent(topic);
+      setData(result);
+    } catch (e) {
+      console.error(e);
+      alert('생성 중 오류가 발생했습니다.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePublish = async () => {
+    if (!data) return;
+    setSaveStatus('saving');
+    try {
+      const result = await savePost(data);
+      if (result.success) {
+        setSaveStatus('success');
+        alert('저장되었습니다!');
+        // Optional: Reset or redirect
+      } else {
+        setSaveStatus('error');
+        alert(`저장 실패: ${result.message}`);
+      }
+    } catch (e) {
+      console.error(e);
+      setSaveStatus('error');
+      alert('저장 중 오류가 발생했습니다.');
+    }
+  };
+
+  const updateField = (field: keyof GeneratedPost, value: string | number | Comment[]) => {
+    if (!data) return;
+    // We use a type assertion here because we know the value matches the field type based on usage,
+    // but TypeScript needs help because GeneratePost[keyof GeneratedPost] is a union.
+    setData({ ...data, [field]: value } as GeneratedPost);
+  };
+
+  const updateComment = (index: number, field: keyof Comment, value: string) => {
+    if (!data) return;
+    const newComments = [...data.comments];
+    newComments[index] = { ...newComments[index], [field]: value };
+    updateField('comments', newComments);
+  };
+
+  const deleteComment = (index: number) => {
+    if (!data) return;
+    const newComments = data.comments.filter((_, i) => i !== index);
+    updateField('comments', newComments);
+  };
+
+  const addComment = () => {
+    if (!data) return;
+    const newComments = [...data.comments, { author: '익명', content: '' }];
+    updateField('comments', newComments);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 p-8 font-sans">
+      <div className="max-w-4xl mx-auto">
+        <h1 className="text-3xl font-bold mb-8 text-gray-800">AI 콘텐츠 생성기 (Admin)</h1>
+
+        {/* Input Section */}
+        <div className="bg-white p-6 rounded-xl shadow-sm mb-8">
+          <label className="block text-sm font-medium text-gray-700 mb-2">주제 입력</label>
+          <div className="flex gap-4">
+            <input
+              type="text"
+              value={topic}
+              onChange={(e) => setTopic(e.target.value)}
+              placeholder="예: 민트초코 호 vs 불호"
+              className="flex-1 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+              onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
+            />
+            <button
+              onClick={handleGenerate}
+              disabled={loading || !topic.trim()}
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg font-semibold hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {loading ? '생성 중...' : '생성하기'}
+            </button>
+          </div>
+        </div>
+
+        {/* Editor Section */}
+        {data && (
+          <div className="bg-white p-8 rounded-xl shadow-lg animate-in fade-in slide-in-from-bottom-4 duration-500">
+            <div className="grid gap-6">
+
+              {/* Meta Info */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="col-span-full">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">제목</label>
+                  <input
+                    type="text"
+                    value={data.title}
+                    onChange={(e) => updateField('title', e.target.value)}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-blue-500 outline-none"
+                  />
+                </div>
+
+                <div className="col-span-full">
+                  <label className="block text-sm font-bold text-gray-700 mb-2">설명 (요약)</label>
+                  <textarea
+                    value={data.description}
+                    onChange={(e) => updateField('description', e.target.value)}
+                    rows={3}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:border-blue-500 outline-none resize-none"
+                  />
+                </div>
+              </div>
+
+              {/* A vs B Section */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 p-4 bg-gray-50 rounded-xl border border-gray-200">
+                {/* Side A */}
+                <div className="flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-blue-600 text-lg">SIDE A</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">초기 득표수</span>
+                      <input
+                        type="number"
+                        value={data.voteCountA}
+                        onChange={(e) => updateField('voteCountA', parseInt(e.target.value) || 0)}
+                        className="w-20 p-1 text-center border rounded"
+                      />
+                    </div>
+                  </div>
+                  <textarea
+                    value={data.sideA}
+                    onChange={(e) => updateField('sideA', e.target.value)}
+                    rows={6}
+                    className="w-full p-3 border border-blue-200 rounded-lg focus:ring-2 focus:ring-blue-500 outline-none"
+                  />
+                </div>
+
+                {/* Side B */}
+                <div className="flex flex-col gap-3">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-red-600 text-lg">SIDE B</span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-500">초기 득표수</span>
+                      <input
+                        type="number"
+                        value={data.voteCountB}
+                        onChange={(e) => updateField('voteCountB', parseInt(e.target.value) || 0)}
+                        className="w-20 p-1 text-center border rounded"
+                      />
+                    </div>
+                  </div>
+                  <textarea
+                    value={data.sideB}
+                    onChange={(e) => updateField('sideB', e.target.value)}
+                    rows={6}
+                    className="w-full p-3 border border-red-200 rounded-lg focus:ring-2 focus:ring-red-500 outline-none"
+                  />
+                </div>
+              </div>
+
+              {/* Comments Section */}
+              <div className="mt-4">
+                <div className="flex justify-between items-end mb-4">
+                  <h3 className="text-lg font-bold text-gray-800">가상 댓글 관리 ({data.comments.length})</h3>
+                  <button
+                    onClick={addComment}
+                    className="text-sm bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1 rounded transition-colors"
+                  >
+                    + 댓글 추가
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {data.comments.map((comment, idx) => (
+                    <div key={idx} className="flex gap-3 items-start bg-gray-50 p-3 rounded-lg border border-gray-100 group">
+                      <div className="w-1/4">
+                        <input
+                          type="text"
+                          value={comment.author}
+                          onChange={(e) => updateComment(idx, 'author', e.target.value)}
+                          placeholder="작성자"
+                          className="w-full p-2 text-sm border border-gray-200 rounded focus:border-blue-500 outline-none font-bold text-gray-700"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <input
+                          type="text"
+                          value={comment.content}
+                          onChange={(e) => updateComment(idx, 'content', e.target.value)}
+                          placeholder="댓글 내용"
+                          className="w-full p-2 text-sm border border-gray-200 rounded focus:border-blue-500 outline-none"
+                        />
+                      </div>
+                      <button
+                        onClick={() => deleteComment(idx)}
+                        className="text-gray-400 hover:text-red-500 p-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                        title="삭제"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="flex justify-end pt-6 border-t mt-6">
+                <button
+                  onClick={handlePublish}
+                  disabled={saveStatus === 'saving'}
+                  className={`
+                    px-8 py-3 rounded-lg font-bold text-lg shadow-md transition-all
+                    ${saveStatus === 'saving' ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-600 hover:bg-green-700 text-white hover:shadow-lg transform hover:-translate-y-0.5'}
+                  `}
+                >
+                  {saveStatus === 'saving' ? '저장 중...' : 'DB에 저장 (Publish)'}
+                </button>
+              </div>
+
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
