@@ -1,0 +1,32 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// Development / Testing: SQLite
+// Production: PostgreSQL (Vercel Postgres)
+// To switch to Postgres:
+// 1. Change provider to "postgresql"
+// 2. Update DATABASE_URL in .env to your Postgres connection string
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Post {
+  id          String   @id @default(uuid())
+  topic       String
+  title       String
+  description String
+  sideA       String
+  sideB       String
+  voteCountA  Int      @default(0)
+  voteCountB  Int      @default(0)
+  comments    String   // Using String for SQLite compatibility. Will parse JSON in application logic.
+  createdAt   DateTime @default(now())
+}
